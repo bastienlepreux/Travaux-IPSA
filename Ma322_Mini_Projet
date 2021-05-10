@@ -1,0 +1,101 @@
+"""
+Mini Projet: Benchmark
+Bastien LEPREUX
+SC2
+"""
+
+from math import *
+import numpy as np
+import matplotlib.pyplot as plt
+
+## Équation intégrale
+#---------------------------------------
+#  Présentation de benchmark utilisé
+#---------------------------------------
+
+#Fonctions
+def NoyauT(x,t) :  
+    return (2)
+
+def FT(t) : 
+    return (cos(pi*t/2) - 8/pi)
+
+#---------------------------------------
+#Construction du système matriciel
+def Mat(f,K,a,b,N) :
+    h = (b-a)/(N-1)
+    x = np.linspace(a,b,N)
+    t = np.linspace(a,b,N)
+    F = np.zeros(N)
+    A = np.zeros((N,N))
+    for i in range(N) :
+        F[i]=f(t[i])
+        for j in range(N) :
+            A[i,j] = 2*K(x[i],t[j])
+    
+    A[:,0] = A[:,0]/2
+    A[:,-1] = A[:,-1]/2
+    F = F.T
+    M = np.diag(np.ones(N))-(h/2)*A
+    
+    return (t,F,M)
+
+#---------------------------------------
+#Résolution de l'equation intégrale
+t,F,M = Mat(FT,NoyauT,-1,1,10)
+U = np.linalg.solve(M,F)
+
+#---------------------------------------
+#Valeurs exactes de U
+U_th=[]
+for k in range (len(t)):
+    val = cos(pi*t[k]/2)
+    U_th.append(val)
+
+#---------------------------------------
+#Tracés
+plt.figure(0)
+plt.plot(t,U,label="Approchée")
+plt.plot(t,U_th,label="Exact")
+plt.title("Résolution de l équation intégrale par présentation de benchmark")
+plt.xlabel("Temps (s)")
+plt.ylabel("u(x)")
+plt.grid()
+plt.legend(loc="best") 
+plt.show()
+
+#---------------------------------------
+#Calcul d'erreur
+Num = 0 #Initialisation numérateur de l'erreur
+Den = 0 #Initialisation dénominateur de l'erreur
+for k in range(len(U_th)) :
+    #Calcul numérateur et dénominateur de l'erreur
+    err = sqrt((U_th[k]-U[k])**2)
+
+print("Erreur ||U − V||2 : ", err)
+
+
+#---------------------------------------
+#  Équation de Love en électrostatique
+#---------------------------------------
+
+#Fonctions
+def Noyau(x,t):
+    return (1/pi)*(1/(1+(x-t)**2))
+
+def f(t):
+    return 1
+
+#---------------------------------------
+#Résolution de l'equation intégrale
+t_Love,F_Love,M_Love = Mat(f,Noyau,-1,1,10)
+U_Love = np.linalg.solve(M_Love,F_Love)
+print("Valeur numérique de U : ",U_Love)
+plt.figure(1)
+plt.plot(t_Love,U_Love,label="Approchée")
+plt.title("Résolution numérique de l equation de Love en électrostatique")
+plt.xlabel("Temps (s)")
+plt.ylabel("u(x)")
+plt.grid()
+plt.legend(loc="best") 
+plt.show()
