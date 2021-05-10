@@ -7,6 +7,7 @@ SC2
 from math import *
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import odeint
 
 ## Équation intégrale
 #---------------------------------------
@@ -99,3 +100,367 @@ plt.ylabel("u(x)")
 plt.grid()
 plt.legend(loc="best") 
 plt.show()
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import odeint
+from scipy.integrate import solve_ivp
+
+#---------------------------------------
+## Circuit RLC
+#---------------------------------------
+
+#Fonctions
+def RLC_prim(Y,t) :
+    C = 1e-6 #C = 1e-4  
+    R = 3 
+    L = 0.5 
+    e = 10
+    return np.array([(1/L)*(e-Y[1]-R*Y[0]),(1/C)*Y[0]])
+
+def RLC_prim_ivp(t,Y) :
+    C = 1e-6 #C = 1e-4
+    R = 3 
+    L = 0.5 
+    e = 10
+    return np.array([(1/L)*(e-Y[1]-R*Y[0]),(1/C)*Y[0]])
+
+
+#---------------------------------------
+#Méthodes
+def solv_edo(t) :
+    Yode = odeint(RLC_prim, Y0,t)
+    return Yode
+
+def solv_ivp(t) :
+    Yode = solve_ivp(RLC_prim_ivp, [0,2], [0,0], t_eval=t) #, method='RK23'
+    return Yode
+
+def RK4(f,t,Y0,N,h) :
+    Yrk=np.zeros((N,Y0.size))
+    Yrk[0,:]=Y0.reshape(2)
+    for k in range (N-1) :
+        k1=f(k*h,Yrk[k,:])
+        k2=f(k*h+(h/2),Yrk[k,:]+(h/2)*k1)
+        k3=f(k*h+(h/2),Yrk[k,:]+(h/2)*k2)
+        k4=f(k*h+h,Yrk[k,:]+h*k3)
+        Yrk[k+1,:]=Yrk[k,:] + (h/6)*(k1+2*k2+2*k3+k4)
+    return (Yrk)
+
+#---------------------------------------
+#Vecteur temps
+a=0
+b=2
+N=201
+t = np.linspace(a,b,N)   
+Y0 = np.array([0,0])  
+h=(b-a)/N
+
+#---------------------------------------
+#Résolutions 
+Yrk= RK4(RLC_prim_ivp,t,Y0,N,h)
+Yedo=solv_edo(t)
+Yivp=solv_ivp(t)
+
+#---------------------------------------
+#Tracés
+#Intensité du circuit
+plt.figure(1)
+plt.plot(t,Yrk[:,0],label='Runge Kutta')
+plt.plot(t,Yedo[:,0],label='Odeint')
+plt.plot(t,Yivp.y[0,:],label='ivp')
+plt.title("Intensité du système RLC") 
+plt.xlabel('Temps (s)')
+plt.ylabel('Intensité i(t) (V)')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+#Tension du circuit
+plt.figure(2)
+Yrk= RK4(RLC_prim_ivp,t,Y0,N,h)
+Yode=solv_edo(t)
+plt.plot(t,Yrk[:,1],label='Runge Kutta')
+plt.plot(t,Yode[:,1],label='Odeint')
+plt.plot(t,Yivp.y[1,:],label='ivp')
+plt.title("Tension du système RLC") 
+plt.xlabel('Temps (s)')
+plt.ylabel('Tension s(t) (A)')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+#---------------------------------------
+## Moteur à courant continue
+#---------------------------------------
+
+#Données
+R=5
+L=50*10**(-3)
+Ke=0.2
+Kc=0.1
+Fm=0.01
+Jm=0.05
+
+#---------------------------------------
+#Fonction échelon de tension
+def Ut(t) : 
+    if (t<10 or t>50) :
+        return 0
+    else:
+        return 5
+    
+#---------------------------------------
+#Création vecteur tension
+liste_U = list()
+
+#---------------------------------------
+#Initialisation
+a = 0
+b = 80
+N = 8000
+Y0 = [0,0]
+t = np.linspace(a,b,N)
+
+for i in t :
+    liste_U.append(Ut(i))
+
+#---------------------------------------
+#Fonction
+def moteurCC(Y,t) :
+    return np.array([(1/L)*(Ut(t)-R*Y[0]-Ke*Y[1]),(1/Jm)*(Kc*Y[0] - Fm*Y[1])])
+
+#---------------------------------------
+#Résolution de l'equation intégrale
+Yode = odeint(moteurCC,Y0,t)
+
+#---------------------------------------
+#Couple moteur
+Cm = Kc*Yode[:,0]
+
+#---------------------------------------
+#Tracés
+#Vitesse angulaire
+plt.plot(t,Yode[:,1],'y',label="Odeint")
+plt.title("Evolution de la vitesse angulaire")
+plt.xlabel("Temps (s)")
+plt.ylabel("w(t) en rad/s")
+plt.legend()
+plt.grid()
+plt.show()
+
+#Couple moteur
+plt.plot(t,Cm,'g',label="Odeint")
+plt.title("Evolution du couple moteur")
+plt.xlabel("Temps (s)")
+plt.ylabel("Cm(t) en N.m")
+plt.legend()
+plt.grid()
+plt.show()
+
+#Tension
+plt.plot(t,liste_U,'b',label="Tension")
+plt.title("Evolution de la tension")
+plt.xlabel("Temps (s)")
+plt.ylabel("u(t) (V)")
+plt.legend()
+plt.grid()
+plt.show()
+
+
+#---------------------------------------
+## Mouvement d'une fusée
+#---------------------------------------
+
+#Fonction
+def fusee(Y,t) :
+    #Données
+    D = 4
+    a = 8*10**3
+    g = 9.81
+    k = 0.1
+    u = 2*10**3
+    
+    #Construction du vecteur Y
+    Yprime = np.zeros(3)
+    if (Y[1] < 80) :
+        Y[1] = 80
+        D = 0
+    
+    Yprime[0] = D*u/Y[1] -g -k*np.exp(-Y[2]/a)*Y[0]**2/Y[1]
+    Yprime[1] = -D
+    Yprime[2] = Y[0]
+    
+    return Yprime
+
+#---------------------------------------
+#Vecteur temps
+a = 0
+b = 160
+N = 100
+Y0 = [0,0]
+t = np.linspace(a,b,N)
+
+#---------------------------------------
+#Résolution de l'equation intégrale
+Y0=[0,400,0]
+Y = odeint(fusee, Y0, t)
+
+#---------------------------------------
+#Tracés
+#Vitesse de la fusée
+plt.plot(t,Y[:,0],label="Vitesse de la fusée")
+plt.xlabel("Temps (s)")
+plt.ylabel("Vitesse v (m/s)")
+plt.legend()
+plt.grid()
+plt.show()
+
+#Trajectoire de la fusée
+plt.plot(t,Y[:,2],label="Trajectoire de la fusée")
+plt.xlabel("Temps (s)")
+plt.ylabel("Hauteur (m)")
+plt.legend()
+plt.grid()
+plt.show()
+
+
+#---------------------------------------
+## Modèle proie-prédateur
+#---------------------------------------
+
+#Fonctions
+#Proies
+def proies () :
+    alpha1 = 3
+    L1 = list()
+    for i in range (0,10):
+        if i == 0 :
+            L1.append(5)
+        else:
+            L1.append(L1[i-1]*alpha1)
+    return L1
+
+#Prédateurs
+def predateurs () :
+    alpha2 = -2
+    L2 = list()
+    for i in range (0,10) :
+        if i == 0:
+            L2.append(3)
+        else:
+            if L2[i-1]<0 :
+                L2.append(L2[i-1]*-alpha2)
+            else: 
+                L2.append(L2[i-1]*alpha2)
+    return L2
+
+#Proie-prédateurs
+def proie_predateur(Y,t):
+    alpha1 = 3
+    beta1 = 1
+    alpha2 = 2
+    beta2 = 1
+    
+    return np.array([alpha1*Y[0] - beta1*Y[0]*Y[1],-alpha2*Y[1]+beta2*Y[0]*Y[1]])
+
+#---------------------------------------
+#Méthodes
+def Euler_explicit(proie_predateur,Y0,N,h) :
+    Ye = np.zeros((N,Y0.size))
+    Ye[0,:] = Y0
+    
+    for k in range(N-1) :
+        Ye[k+1,:] = Ye[k,:] + h*proie_predateur(Ye[k,:],t[k])
+    return Ye
+
+def solv_edo(t) :
+    return odeint(proie_predateur, Y0,t)
+
+#---------------------------------------
+#Vecteur temps
+a=0
+b=10
+N=101
+t = np.linspace(a,b,N)   
+Y0 = np.array([5,3])  
+h=(b-a)/N
+
+#---------------------------------------
+#Résolution sans prédateur 
+Lievre=proies()
+
+#Résolution sans proie
+Lynx=predateurs()
+
+#Résolution de l'equation intégrale
+Ye = Euler_explicit(proie_predateur,Y0,N,h)
+# Yrk= RK4(proie_predateur,t,Y0,N,h)
+Yode = solv_edo(t)
+Tpp = np.linspace(0,10,10)
+
+#---------------------------------------
+#Tracés
+#Proies sans prédateurs
+# plt.figure(figsize=(10,5))
+# plt.plot(Tpp,Lievre,label="proies",color="red")
+# plt.xlabel("Nombre d'années")
+# plt.ylabel("Nombre de spécimen")
+# plt.legend(loc=1)
+# plt.grid(True)
+# plt.title("Evolution du nombre de proies en fonction du temps sans prédateur")
+# plt.show()
+
+#Prédateurs sans proie
+# plt.figure(figsize=(10,5))
+# plt.plot(Tpp,Lynx,label="predateurs",color="black")
+# plt.xlabel("Nombre d'années")
+# plt.ylabel("Nombre de spécimen")
+# plt.legend(loc=1)
+# plt.grid(True)
+# plt.title("Evolution du nombre de prédateurs en fonction du temps sans proie")
+# plt.show()
+
+#Evolution proies-prédateur avec la méthode d'Euler
+# plt.figure(figsize=(10,5))
+# plt.plot(t,Ye[:,0], label="proies",color="red")
+# plt.plot(t,Ye[:,1], label="prédateurs",color="black")
+# plt.xlabel("Nombre d'années")
+# plt.ylabel("Nombre d'especes")
+# plt.grid(True)
+# plt.legend(loc=1)
+# plt.title("Evolution du nombre de prédateurs en fonction du temps (Euler)")
+# plt.show()
+
+#Evolution proies-prédateur avec la méthode du solveur odeint
+plt.figure(figsize=(10,5))
+plt.plot(t,Yode[:,0], label="proies",color="red")
+plt.plot(t,Yode[:,1], label="prédateurs",color="black")
+plt.xlabel("Nombre d'années")
+plt.ylabel("Nombre d'especes")
+plt.grid(True)
+plt.legend(loc=1)
+plt.title("Evolution du nombre de prédateurs en fonction du temps")
+plt.show()
+
+#Portait de phase Euler
+# plt.figure(figsize=(10,5))
+# plt.plot(Ye[:,0],Ye[:,1], label="Odeint",color="blue")
+# plt.xlabel("Proies")
+# plt.ylabel("Prédateurs")
+# plt.grid(True)
+# plt.legend(loc=1)
+# plt.title("Portrait de phase (Euleur)")
+# plt.show()
+
+#Portait de phase odeint
+# plt.figure(figsize=(10,5))
+# plt.plot(Yode[:,0],Yode[:,1], label="Odeint",color="blue")
+# plt.xlabel("Proies")
+# plt.ylabel("Prédateurs")
+# plt.grid(True)
+# plt.legend(loc=1)
+# plt.title("Portrait de phase (odeint)")
+# plt.show()
+
